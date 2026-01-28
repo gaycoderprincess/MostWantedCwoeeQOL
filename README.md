@@ -11,7 +11,7 @@ A mod for Need for Speed: Most Wanted that fixes a couple of small issues
 ## Features
 
 - A working resolution slider
-- An in-game toggle for motion blur
+- An in-game toggle for motion blur and subtitles
 - Auto-detection for PAL/NTSC movies, fixing the issue with FMVs not playing
 - Basic physics framerate override
 - Removed the check for an Underground 2 savefile, always giving you the 10k bonus (without a popup message)
