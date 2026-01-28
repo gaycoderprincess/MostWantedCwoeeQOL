@@ -1,0 +1,7 @@
+# Chloe's Smol Quality-Of-Life Bundle by @gaycoderprincess
+# enjoy, nya~ :3
+
+seamless_ug2 = true		# disables the popup for the Underground 2 savegame bonus and always gives you the extra money
+move_savegames = false		# moves savegames into a SAVE folder in the game root
+override_resolution = false	# overrides the game's display resolution with your desktop resolution
+sim_rate = 120			# changes the framerate of the game's physics
