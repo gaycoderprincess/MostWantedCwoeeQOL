@@ -10,6 +10,7 @@ A mod for Need for Speed: Most Wanted that fixes a couple of small issues
 
 ## Features
 
+- A working resolution slider
 - An in-game toggle for motion blur
 - Auto-detection for PAL/NTSC movies, fixing the issue with FMVs not playing
 - Basic physics framerate override

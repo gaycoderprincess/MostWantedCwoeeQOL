@@ -6,6 +6,41 @@
 #include "nya_commonhooklib.h"
 #include "nfsmw.h"
 
+auto SHGetFolderPathA = (void(__stdcall*)(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR pszPath))(*(uintptr_t*)0x42C830);
+
+bool bCustomSavePath = false;
+
+struct ModConfig {
+	bool bResolutionSet = false;
+	bool bSubtitlesEnabled = false;
+
+	static std::string GetSaveFolder() {
+		if (bCustomSavePath) {
+			return std::format("{}/NFS Most Wanted/", std::filesystem::absolute("SAVE").string());
+		}
+
+		CHAR pszPath[256];
+		SHGetFolderPathA(0, 0x8005, 0, 0, pszPath);
+		return std::format("{}/NFS Most Wanted/", pszPath);
+	}
+
+	void Save() {
+		std::ofstream file(GetSaveFolder() + "cwoee.sav", std::iostream::out | std::iostream::binary);
+		if (!file.is_open()) return;
+
+		file.write((char*)&bResolutionSet, sizeof(bResolutionSet));
+		file.write((char*)&bSubtitlesEnabled, sizeof(bSubtitlesEnabled));
+	}
+
+	void Load() {
+		std::ifstream file(GetSaveFolder() + "cwoee.sav", std::iostream::in | std::iostream::binary);
+		if (!file.is_open()) return;
+
+		file.read((char*)&bResolutionSet, sizeof(bResolutionSet));
+		file.read((char*)&bSubtitlesEnabled, sizeof(bSubtitlesEnabled));
+	}
+} Config;
+
 // fixes a crash when totaling your car after quitting from a race
 // in this case GRacerInfo is valid, mRaceParms is not
 void __thiscall TotalVehicleFixed(GRacerInfo* pThis) {
@@ -118,7 +153,11 @@ void CollectDisplayResolutions() {
 		aDisplayModes.push_back(mode);
 	}
 
-	if (FirstTime) g_RacingResolution = aDisplayModes.size() - 1;
+	if (FirstTime || !Config.bResolutionSet) {
+		g_RacingResolution = aDisplayModes.size() - 1;
+		Config.bResolutionSet = true;
+		Config.Save();
+	}
 }
 
 void __stdcall GetRacingResolution_New(int* x, int* y) {
@@ -161,6 +200,40 @@ public:
 	}
 };
 
+int GetSubtitlesOn() {
+	return Config.bSubtitlesEnabled;
+}
+
+class GOSubtitles : public FEToggleWidget {
+public:
+	void* operator new(size_t size) {
+		return GAME_malloc(size);
+	}
+
+	GOSubtitles(bool state) : FEToggleWidget(state) {}
+
+	void Act(const char* a2, uint32_t a3) override {
+		if (a3 == 0x9120409E || a3 == 0xB5971BF1) {
+			Config.bSubtitlesEnabled = !Config.bSubtitlesEnabled;
+			Config.Save();
+		}
+
+		bMovedLastUpdate = true;
+		BlinkArrows(a3);
+		Draw();
+	}
+	void Draw() override {
+		if (auto title = pTitle) {
+			FEPrintf(title, "Subtitles");
+		}
+		if (auto title = pData) {
+			title->LabelHash = Config.bSubtitlesEnabled ? 0x16FDEF36 : 0xF6BBD534;
+			title->Flags |= 0x400000;
+			title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
+		}
+	}
+};
+
 void __thiscall VOScreenResolution_Act(FEToggleWidget* pThis, const char* a2, uint32_t a3) {
 	int scroll = 0;
 	if (a3 == 0x9120409E) scroll = -1;
@@ -194,6 +267,11 @@ void __thiscall MotionBlurHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, bo
 	UIWidgetMenu::AddToggleOption(pThis, new DOMotionBlurEnable(true), a3);
 }
 
+void __thiscall SubtitlesHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, bool a3) {
+	UIWidgetMenu::AddToggleOption(pThis, widget, a3);
+	UIWidgetMenu::AddToggleOption(pThis, new GOSubtitles(true), a3);
+}
+
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 	switch( fdwReason ) {
 		case DLL_PROCESS_ATTACH: {
@@ -203,13 +281,12 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			}
 
 			bool bSeamlessUG2 = true;
-			bool bGameFolderSaves = false;
-			bool bOverrideResolution = false;
+			bool bOverrideResolution = true;
 			static float fSchedulerTimestep = 60.0;
 			if (std::filesystem::exists("NFSMWCwoeeQOL_gcp.toml")) {
 				auto config = toml::parse_file("NFSMWCwoeeQOL_gcp.toml");
 				bSeamlessUG2 = config["seamless_ug2"].value_or(bSeamlessUG2);
-				bGameFolderSaves = config["move_savegames"].value_or(bGameFolderSaves);
+				bCustomSavePath = config["move_savegames"].value_or(bCustomSavePath);
 				bOverrideResolution = config["fix_resolution"].value_or(bOverrideResolution);
 				fSchedulerTimestep = config["sim_rate"].value_or(fSchedulerTimestep);
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
@@ -237,6 +314,8 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			if (bOverrideResolution) {
 				NyaHooks::LateInitHook::Init();
 				NyaHooks::LateInitHook::aPreFunctions.push_back([]() {
+					Config.Load();
+
 					NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x6C27D0, &GetRacingResolution_New);
 					NyaHookLib::Patch(0x89BB08, &VOScreenResolution_Act);
 					NyaHookLib::Patch(0x89BB10, &VOScreenResolution_Draw);
@@ -256,7 +335,12 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529BC7, &MotionBlurHooked);
 
-			if (bGameFolderSaves) {
+			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529E8D, &SubtitlesHooked);
+			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x542DAE, &GetSubtitlesOn);
+			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54EE6C, &GetSubtitlesOn);
+			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54F20D, &GetSubtitlesOn);
+
+			if (bCustomSavePath) {
 				static auto func = &GetSaveFolderNew;
 				NyaHookLib::Patch(0x6CBF17 + 2, &func);
 			}
