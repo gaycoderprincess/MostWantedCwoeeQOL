@@ -274,6 +274,7 @@ void __thiscall SubtitlesHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, boo
 	UIWidgetMenu::AddToggleOption(pThis, new GOSubtitles(true), a3);
 }
 
+// just using FEPrintf or somesuch to create a literal string seems to offset the text labels a bit, this seems to be the only way to make them look correct
 const char* __fastcall SearchForStringHooked(void* a1, uint32_t hash) {
 	auto str = SearchForString(a1, hash);
 	if (!str) {
