@@ -87,6 +87,49 @@ HRESULT __stdcall GetSaveFolderNew(HWND hwnd, int csidl, HANDLE hToken, DWORD dw
 	return 0;
 }
 
+std::vector<D3DDISPLAYMODE> aDisplayModes;
+bool DoesDisplayResolutionExist(int x, int y) {
+	for (auto& mode : aDisplayModes) {
+		if (mode.Width == x && mode.Height == y) return true;
+	}
+	return false;
+}
+
+void CollectDisplayResolutions() {
+	static bool bOnce = false;
+	if (bOnce) return;
+	bOnce = true;
+
+	auto count = GameD3D->GetAdapterModeCount(D3DADAPTER_DEFAULT, D3DFMT_X8R8G8B8);
+	for (int i = 0; i < count; i++) {
+		D3DDISPLAYMODE mode;
+		GameD3D->EnumAdapterModes(D3DADAPTER_DEFAULT, D3DFMT_X8R8G8B8, i, &mode);
+		if (DoesDisplayResolutionExist(mode.Width, mode.Height)) continue; // skip duplicates, the game doesn't care about refresh rate differences
+		aDisplayModes.push_back(mode);
+	}
+
+	// use desktop resolution as a fallback
+	if (aDisplayModes.empty()) {
+		RECT rect = {};
+		GetClientRect(GetDesktopWindow(), &rect);
+		D3DDISPLAYMODE mode;
+		mode.Width = rect.right - rect.left;
+		mode.Height = rect.bottom - rect.top;
+		aDisplayModes.push_back(mode);
+	}
+
+	if (FirstTime) g_RacingResolution = aDisplayModes.size() - 1;
+}
+
+void __stdcall GetRacingResolution_New(int* x, int* y) {
+	CollectDisplayResolutions();
+
+	auto id = g_RacingResolution;
+	if (id < 0 || id >= aDisplayModes.size()) id = 0;
+	*x = aDisplayModes[id].Width;
+	*y = aDisplayModes[id].Height;
+}
+
 class DOMotionBlurEnable : public FEToggleWidget {
 public:
 	void* operator new(size_t size) {
@@ -97,7 +140,7 @@ public:
 
 	void Act(const char* a2, uint32_t a3) override {
 		if (a3 == 0x9120409E || a3 == 0xB5971BF1) {
-			g_MotionBlurEnable = !g_MotionBlurEnable;
+			(*UIOptionsScreen::OptionsToEdit)->g_MotionBlurEnable = !(*UIOptionsScreen::OptionsToEdit)->g_MotionBlurEnable;
 		}
 
 		bMovedLastUpdate = true;
@@ -111,30 +154,44 @@ public:
 			title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
 		}
 		if (auto title = pData) {
-			title->LabelHash = g_MotionBlurEnable ? 0x16FDEF36 : 0xF6BBD534;
+			title->LabelHash = (*UIOptionsScreen::OptionsToEdit)->g_MotionBlurEnable ? 0x16FDEF36 : 0xF6BBD534;
 			title->Flags |= 0x400000;
 			title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
 		}
 	}
 };
 
+void __thiscall VOScreenResolution_Act(FEToggleWidget* pThis, const char* a2, uint32_t a3) {
+	int scroll = 0;
+	if (a3 == 0x9120409E) scroll = -1;
+	if (a3 == 0xB5971BF1) scroll = 1;
+
+	auto& dest = (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution;
+	dest += scroll;
+	if (dest < 0) dest = aDisplayModes.size()-1;
+	if (dest >= aDisplayModes.size()) dest = 0;
+
+	pThis->bMovedLastUpdate = true;
+	pThis->BlinkArrows(a3);
+	pThis->Draw();
+}
+
+void __thiscall VOScreenResolution_Draw(FEToggleWidget* pThis) {
+	if (auto title = pThis->pTitle) {
+		title->LabelHash = 0xC96D57C9;
+		title->Flags |= 0x400000;
+		title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
+	}
+	if (auto title = pThis->pData) {
+		auto modeId = (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution;
+		if (modeId < 0 || modeId >= aDisplayModes.size()) modeId = 0;
+		FEPrintf(title, "%dx%d", aDisplayModes[modeId].Width, aDisplayModes[modeId].Height);
+	}
+}
+
 void __thiscall MotionBlurHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, bool a3) {
 	UIWidgetMenu::AddToggleOption(pThis, widget, a3);
 	UIWidgetMenu::AddToggleOption(pThis, new DOMotionBlurEnable(true), a3);
-}
-
-int nResX = 0;
-int nResY = 0;
-void __stdcall GetRacingResolution_New(int* x, int* y) {
-	if (nResX <= 0 || nResY <= 0) {
-		RECT rect = {};
-		GetClientRect(GetDesktopWindow(), &rect);
-		nResX = rect.right - rect.left;
-		nResY = rect.bottom - rect.top;
-	}
-
-	*x = nResX;
-	*y = nResY;
 }
 
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
@@ -153,7 +210,7 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 				auto config = toml::parse_file("NFSMWCwoeeQOL_gcp.toml");
 				bSeamlessUG2 = config["seamless_ug2"].value_or(bSeamlessUG2);
 				bGameFolderSaves = config["move_savegames"].value_or(bGameFolderSaves);
-				bOverrideResolution = config["override_resolution"].value_or(bOverrideResolution);
+				bOverrideResolution = config["fix_resolution"].value_or(bOverrideResolution);
 				fSchedulerTimestep = config["sim_rate"].value_or(fSchedulerTimestep);
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
 			}
@@ -178,9 +235,18 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			NyaHooks::LateInitHookAlternate::aFunctions.push_back([]() { Scheduler::fgScheduler->fTimeStep = 1.0 / fSchedulerTimestep; });
 
 			if (bOverrideResolution) {
-				NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x6C27D0, &GetRacingResolution_New);
-				NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x52978B, 0x5297C8); // remove resolution from the basic menu
-				NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x5297DC, 0x529818); // remove resolution from the advanced menu
+				NyaHooks::LateInitHook::Init();
+				NyaHooks::LateInitHook::aPreFunctions.push_back([]() {
+					NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x6C27D0, &GetRacingResolution_New);
+					NyaHookLib::Patch(0x89BB08, &VOScreenResolution_Act);
+					NyaHookLib::Patch(0x89BB10, &VOScreenResolution_Draw);
+					//NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x52978B, 0x5297C8); // remove resolution from the basic menu
+					//NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x5297DC, 0x529818); // remove resolution from the advanced menu
+
+					// prevent racingresolution from being reset
+					NyaHookLib::Patch<uint8_t>(0x6C1954, 0xC3);
+					NyaHookLib::Patch<uint8_t>(0x6E6B9E, 0xEB);
+				});
 			}
 
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x63C093, &TotalVehicleFixed);
