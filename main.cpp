@@ -275,8 +275,9 @@ void __thiscall SubtitlesHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, boo
 }
 
 // just using FEPrintf or somesuch to create a literal string seems to offset the text labels a bit, this seems to be the only way to make them look correct
+auto SearchForString_orig = (const char*(__fastcall*)(void*, uint32_t))nullptr;
 const char* __fastcall SearchForStringHooked(void* a1, uint32_t hash) {
-	auto str = SearchForString(a1, hash);
+	auto str = SearchForString_orig(a1, hash);
 	if (!str) {
 		if (hash == Attrib::StringHash32("SUBTITLES")) {
 			return "Subtitles";
@@ -305,7 +306,7 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
 			}
 
-			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x57E924, &SearchForStringHooked);
+			SearchForString_orig = (const char*(__fastcall*)(void*, uint32_t))NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x57E924, &SearchForStringHooked);
 
 			// NIS motion blur override - this is required for 360 stuff to be compatible with the motion blur toggle
 			// currently one frame behind, todo hook in a few more places to set the bool quickly enough for that to not happen
