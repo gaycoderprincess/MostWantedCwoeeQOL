@@ -224,7 +224,9 @@ public:
 	}
 	void Draw() override {
 		if (auto title = pTitle) {
-			FEPrintf(title, "Subtitles");
+			title->LabelHash = Attrib::StringHash32("SUBTITLES");
+			title->Flags |= 0x400000;
+			title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
 		}
 		if (auto title = pData) {
 			title->LabelHash = Config.bSubtitlesEnabled ? 0x16FDEF36 : 0xF6BBD534;
@@ -272,6 +274,16 @@ void __thiscall SubtitlesHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, boo
 	UIWidgetMenu::AddToggleOption(pThis, new GOSubtitles(true), a3);
 }
 
+const char* __fastcall SearchForStringHooked(void* a1, uint32_t hash) {
+	auto str = SearchForString(a1, hash);
+	if (!str) {
+		if (hash == Attrib::StringHash32("SUBTITLES")) {
+			return "Subtitles";
+		}
+	}
+	return str;
+}
+
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 	switch( fdwReason ) {
 		case DLL_PROCESS_ATTACH: {
@@ -291,6 +303,8 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 				fSchedulerTimestep = config["sim_rate"].value_or(fSchedulerTimestep);
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
 			}
+
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x57E924, &SearchForStringHooked);
 
 			// NIS motion blur override - this is required for 360 stuff to be compatible with the motion blur toggle
 			// currently one frame behind, todo hook in a few more places to set the bool quickly enough for that to not happen
@@ -335,10 +349,10 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529BC7, &MotionBlurHooked);
 
-			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529E8D, &SubtitlesHooked);
-			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x542DAE, &GetSubtitlesOn);
-			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54EE6C, &GetSubtitlesOn);
-			//NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54F20D, &GetSubtitlesOn);
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529E8D, &SubtitlesHooked);
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x542DAE, &GetSubtitlesOn);
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54EE6C, &GetSubtitlesOn);
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54F20D, &GetSubtitlesOn);
 
 			if (bCustomSavePath) {
 				static auto func = &GetSaveFolderNew;
