@@ -64,7 +64,7 @@ EAX_CarState* GetClosestPlayerCarFixed(bVector3* a1) {
 // always unlock all cars in the career garage
 auto IsCarUnlockedOrig = (bool(__cdecl*)(void* a1, uint32_t a2, int a3))nullptr;
 bool IsCarUnlockedFixed(void* a1, uint32_t a2, int a3) {
-	auto cars = &FEDatabase->mUserProfile->PlayersCarStable;
+	auto cars = &FEDatabase->CurrentUserProfiles[0]->PlayersCarStable;
 	if (auto rec = FEPlayerCarDB::GetCarRecordByHandle(cars, a2)) {
 		if (FEPlayerCarDB::GetCareerRecordByHandle(cars, rec->CareerHandle) != nullptr) return true;
 	}
@@ -171,10 +171,6 @@ void __stdcall GetRacingResolution_New(int* x, int* y) {
 
 class DOMotionBlurEnable : public FEToggleWidget {
 public:
-	void* operator new(size_t size) {
-		return GAME_malloc(size);
-	}
-
 	DOMotionBlurEnable(bool state) : FEToggleWidget(state) {}
 
 	void Act(const char* a2, uint32_t a3) override {
@@ -206,10 +202,6 @@ int GetSubtitlesOn() {
 
 class GOSubtitles : public FEToggleWidget {
 public:
-	void* operator new(size_t size) {
-		return GAME_malloc(size);
-	}
-
 	GOSubtitles(bool state) : FEToggleWidget(state) {}
 
 	void Act(const char* a2, uint32_t a3) override {
@@ -264,28 +256,6 @@ void __thiscall VOScreenResolution_Draw(FEToggleWidget* pThis) {
 	}
 }
 
-void __thiscall MotionBlurHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, bool a3) {
-	UIWidgetMenu::AddToggleOption(pThis, widget, a3);
-	UIWidgetMenu::AddToggleOption(pThis, new DOMotionBlurEnable(true), a3);
-}
-
-void __thiscall SubtitlesHooked(UIWidgetMenu* pThis, FEToggleWidget* widget, bool a3) {
-	UIWidgetMenu::AddToggleOption(pThis, widget, a3);
-	UIWidgetMenu::AddToggleOption(pThis, new GOSubtitles(true), a3);
-}
-
-// just using FEPrintf or somesuch to create a literal string seems to offset the text labels a bit, this seems to be the only way to make them look correct
-auto SearchForString_orig = (const char*(__fastcall*)(void*, uint32_t))nullptr;
-const char* __fastcall SearchForStringHooked(void* a1, uint32_t hash) {
-	auto str = SearchForString_orig(a1, hash);
-	if (!str) {
-		if (hash == Attrib::StringHash32("SUBTITLES")) {
-			return "Subtitles";
-		}
-	}
-	return str;
-}
-
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 	switch( fdwReason ) {
 		case DLL_PROCESS_ATTACH: {
@@ -306,7 +276,9 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
 			}
 
-			SearchForString_orig = (const char*(__fastcall*)(void*, uint32_t))NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x57E924, &SearchForStringHooked);
+			NyaHooks::OptionsMenuHook::AddStringRecord(Attrib::StringHash32("SUBTITLES"), "Subtitles");
+			NyaHooks::OptionsMenuHook::AddMenuOption(OC_PC_ADV_DISPLAY, [](UIWidgetMenu* pThis){ UIWidgetMenu::AddToggleOption(pThis, new DOMotionBlurEnable(true), true); });
+			NyaHooks::OptionsMenuHook::AddMenuOption(OC_AUDIO, [](UIWidgetMenu* pThis){ UIWidgetMenu::AddToggleOption(pThis, new GOSubtitles(true), true); });
 
 			// NIS motion blur override - this is required for 360 stuff to be compatible with the motion blur toggle
 			// currently one frame behind, todo hook in a few more places to set the bool quickly enough for that to not happen
@@ -349,9 +321,6 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x4F0E70, &GetClosestPlayerCarFixed);
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x516137, &IsPALFixed);
 
-			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529BC7, &MotionBlurHooked);
-
-			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x529E8D, &SubtitlesHooked);
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x542DAE, &GetSubtitlesOn);
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54EE6C, &GetSubtitlesOn);
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x54F20D, &GetSubtitlesOn);
