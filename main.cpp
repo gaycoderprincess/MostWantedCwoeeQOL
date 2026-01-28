@@ -158,6 +158,8 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 				if (fSchedulerTimestep < 1.0) fSchedulerTimestep = 1.0;
 			}
 
+			// NIS motion blur override - this is required for 360 stuff to be compatible with the motion blur toggle
+			// currently one frame behind, todo hook in a few more places to set the bool quickly enough for that to not happen
 			static bool bNewNISMotionBlur = true;
 			NyaHooks::WorldServiceHook::Init();
 			NyaHooks::WorldServiceHook::aFunctions.push_back([](){ *(bool*)0x8F9B28 = bNewNISMotionBlur && g_MotionBlurEnable; });
