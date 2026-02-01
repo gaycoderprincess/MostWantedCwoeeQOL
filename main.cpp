@@ -6,7 +6,7 @@
 #include "nya_commonhooklib.h"
 #include "nfsmw.h"
 
-auto SHGetFolderPathA = (void(__stdcall*)(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR pszPath))(*(uintptr_t*)0x42C830);
+auto SHGetFolderPathA = (void(__stdcall*)(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR pszPath))(*(uintptr_t*)0x8902EC);
 
 bool bCustomSavePath = false;
 
