@@ -11,6 +11,7 @@ A mod for Need for Speed: Most Wanted that fixes a couple of small issues
 ## Features
 
 - A working resolution slider
+- AI cars driven by the player now have audio, working engine RPM and can be reset
 - An in-game toggle for motion blur and subtitles
 - Auto-detection for PAL/NTSC movies, fixing the issue with FMVs not playing
 - Basic physics framerate override

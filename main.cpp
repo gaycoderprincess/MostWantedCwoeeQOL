@@ -256,6 +256,20 @@ void __thiscall VOScreenResolution_Draw(FEToggleWidget* pThis) {
 	}
 }
 
+UCrc32* __thiscall CarBehaviorHooked(PVehicle* pThis, UCrc32* result, const Attrib::StringKey* mechanic) {
+	if (pThis->mDriverClass == DRIVER_HUMAN) {
+		if (mechanic == &BEHAVIOR_MECHANIC_RESET) {
+			result->mCRC = Attrib::StringHash32("ResetCar");
+			return result;
+		}
+		if (mechanic == &BEHAVIOR_MECHANIC_AUDIO) {
+			result->mCRC = Attrib::StringHash32("SoundRacer");
+			return result;
+		}
+	}
+	return PVehicle::LookupBehaviorSignature(pThis, result, mechanic);
+}
+
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 	switch( fdwReason ) {
 		case DLL_PROCESS_ATTACH: {
@@ -294,6 +308,9 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			NyaHookLib::Patch(0x62E3AD, &bNewNISMotionBlur);
 			NyaHookLib::Patch(0x6DBB40, &bNewNISMotionBlur);
 			NyaHookLib::Patch(0x6F75DA, &bNewNISMotionBlur);
+
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x6855F6, &CarBehaviorHooked);
+			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x6856C2, &CarBehaviorHooked);
 
 			// using LateInitHookAlternate here to make sure LateInitHook can override this later
 			NyaHooks::LateInitHookAlternate::Init();
