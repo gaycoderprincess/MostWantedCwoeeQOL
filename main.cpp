@@ -230,16 +230,16 @@ public:
 };
 
 void __thiscall VOScreenResolution_Act(FEToggleWidget* pThis, const char* a2, uint32_t a3) {
-	if (!bOverrideResolution) return;
-
 	int scroll = 0;
 	if (a3 == 0x9120409E) scroll = -1;
 	if (a3 == 0xB5971BF1) scroll = 1;
 
-	auto& dest = (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution;
-	dest += scroll;
-	if (dest < 0) dest = aDisplayModes.size()-1;
-	if (dest >= aDisplayModes.size()) dest = 0;
+	if (bOverrideResolution) {
+		auto& dest = (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution;
+		dest += scroll;
+		if (dest < 0) dest = aDisplayModes.size()-1;
+		if (dest >= aDisplayModes.size()) dest = 0;
+	}
 
 	pThis->bMovedLastUpdate = true;
 	pThis->BlinkArrows(a3);
