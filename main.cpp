@@ -9,6 +9,7 @@
 auto SHGetFolderPathA = (void(__stdcall*)(HWND hwnd, int csidl, HANDLE hToken, DWORD dwFlags, LPSTR pszPath))(*(uintptr_t*)0x8902EC);
 
 bool bCustomSavePath = false;
+bool bOverrideResolution = true;
 
 struct ModConfig {
 	bool bResolutionSet = false;
@@ -45,11 +46,11 @@ struct ModConfig {
 // in this case GRacerInfo is valid, mRaceParms is not
 void __thiscall TotalVehicleFixed(GRacerInfo* pThis) {
 	if (!GRaceStatus::fObj->mRaceParms) return;
-	GRacerInfo::TotalVehicle(pThis);
+	pThis->TotalVehicle();
 }
 void __thiscall BlowEngineFixed(GRacerInfo* pThis) {
 	if (!GRaceStatus::fObj->mRaceParms) return;
-	GRacerInfo::BlowEngine(pThis);
+	pThis->BlowEngine();
 }
 
 // fixes a crash when hitting objects using a player-driven AI car
@@ -153,7 +154,7 @@ void CollectDisplayResolutions() {
 		aDisplayModes.push_back(mode);
 	}
 
-	if (FirstTime || !Config.bResolutionSet) {
+	if (bOverrideResolution && (FirstTime || !Config.bResolutionSet)) {
 		g_RacingResolution = aDisplayModes.size() - 1;
 		Config.bResolutionSet = true;
 		Config.Save();
@@ -163,7 +164,7 @@ void CollectDisplayResolutions() {
 void __stdcall GetRacingResolution_New(int* x, int* y) {
 	CollectDisplayResolutions();
 
-	auto id = g_RacingResolution;
+	auto id = bOverrideResolution ? g_RacingResolution : aDisplayModes.size() - 1;
 	if (id < 0 || id >= aDisplayModes.size()) id = 0;
 	*x = aDisplayModes[id].Width;
 	*y = aDisplayModes[id].Height;
@@ -229,6 +230,8 @@ public:
 };
 
 void __thiscall VOScreenResolution_Act(FEToggleWidget* pThis, const char* a2, uint32_t a3) {
+	if (!bOverrideResolution) return;
+
 	int scroll = 0;
 	if (a3 == 0x9120409E) scroll = -1;
 	if (a3 == 0xB5971BF1) scroll = 1;
@@ -250,7 +253,7 @@ void __thiscall VOScreenResolution_Draw(FEToggleWidget* pThis) {
 		title->Flags = title->Flags & 0xFFBFFFFD | 0x400000;
 	}
 	if (auto title = pThis->pData) {
-		auto modeId = (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution;
+		auto modeId = bOverrideResolution ? (*UIOptionsScreen::OptionsToEdit)->g_RacingResolution : aDisplayModes.size() - 1;
 		if (modeId < 0 || modeId >= aDisplayModes.size()) modeId = 0;
 		FEPrintf(title, "%dx%d", aDisplayModes[modeId].Width, aDisplayModes[modeId].Height);
 	}
@@ -267,7 +270,7 @@ UCrc32* __thiscall CarBehaviorHooked(PVehicle* pThis, UCrc32* result, const Attr
 			return result;
 		}
 	}
-	return PVehicle::LookupBehaviorSignature(pThis, result, mechanic);
+	return pThis->LookupBehaviorSignature(result, mechanic);
 }
 
 BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
@@ -279,7 +282,6 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			}
 
 			bool bSeamlessUG2 = true;
-			bool bOverrideResolution = true;
 			static float fSchedulerTimestep = 60.0;
 			if (std::filesystem::exists("NFSMWCwoeeQOL_gcp.toml")) {
 				auto config = toml::parse_file("NFSMWCwoeeQOL_gcp.toml");
@@ -316,22 +318,22 @@ BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
 			NyaHooks::LateInitHookAlternate::Init();
 			NyaHooks::LateInitHookAlternate::aFunctions.push_back([]() { Scheduler::fgScheduler->fTimeStep = 1.0 / fSchedulerTimestep; });
 
-			if (bOverrideResolution) {
-				NyaHooks::LateInitHook::Init();
-				NyaHooks::LateInitHook::aPreFunctions.push_back([]() {
-					Config.Load();
+			NyaHooks::LateInitHook::Init();
+			NyaHooks::LateInitHook::aPreFunctions.push_back([]() {
+				Config.Load();
 
-					NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x6C27D0, &GetRacingResolution_New);
-					NyaHookLib::Patch(0x89BB08, &VOScreenResolution_Act);
-					NyaHookLib::Patch(0x89BB10, &VOScreenResolution_Draw);
+				NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x6C27D0, &GetRacingResolution_New);
+				NyaHookLib::Patch(0x89BB08, &VOScreenResolution_Act);
+				NyaHookLib::Patch(0x89BB10, &VOScreenResolution_Draw);
+				if (bOverrideResolution) {
 					//NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x52978B, 0x5297C8); // remove resolution from the basic menu
 					//NyaHookLib::PatchRelative(NyaHookLib::JMP, 0x5297DC, 0x529818); // remove resolution from the advanced menu
 
 					// prevent racingresolution from being reset
 					NyaHookLib::Patch<uint8_t>(0x6C1954, 0xC3);
 					NyaHookLib::Patch<uint8_t>(0x6E6B9E, 0xEB);
-				});
-			}
+				}
+			});
 
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x63C093, &TotalVehicleFixed);
 			NyaHookLib::PatchRelative(NyaHookLib::CALL, 0x63839A, &BlowEngineFixed);
