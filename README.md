@@ -2,6 +2,8 @@
 
 A mod for Need for Speed: Most Wanted that fixes a couple of small issues
 
+### This project has been moved to [Codeberg](https://codeberg.org/gaycoderprincess/MostWantedChaos) due to GitHub's continued pushing of AI garbage.
+
 ## Installation
 
 - Make sure you have v1.3 of the game, as this is the only version this plugin is compatible with. (exe size of 6029312 bytes)
