@@ -2,7 +2,7 @@
 
 A mod for Need for Speed: Most Wanted that fixes a couple of small issues
 
-### This project has been moved to [Codeberg](https://codeberg.org/gaycoderprincess/MostWantedChaos) due to GitHub's continued pushing of AI garbage.
+### This project has been moved to [Codeberg](https://codeberg.org/gaycoderprincess/MostWantedCwoeeQOL) due to GitHub's continued pushing of AI garbage.
 
 ## Installation
 
